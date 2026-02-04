@@ -1325,14 +1325,15 @@ export function updateDocumentTitle(
   db: Database,
   documentId: number,
   title: string,
-  modifiedAt: string
+  modifiedAt: string,
+  originalPath?: string
 ): void {
-  db.prepare(`UPDATE documents SET title = ?, modified_at = ? WHERE id = ?`)
-    .run(title, modifiedAt, documentId);
+  db.prepare(`UPDATE documents SET title = ?, modified_at = ?, original_path = COALESCE(?, original_path) WHERE id = ?`)
+    .run(title, modifiedAt, originalPath ?? null, documentId);
 }
 
 /**
- * Update an existing document's hash, title, and modified_at timestamp.
+ * Update an existing document's hash, title, modified_at timestamp, and original_path.
  * Used when content changes but the file path stays the same.
  */
 export function updateDocument(
@@ -1340,10 +1341,11 @@ export function updateDocument(
   documentId: number,
   title: string,
   hash: string,
-  modifiedAt: string
+  modifiedAt: string,
+  originalPath?: string
 ): void {
-  db.prepare(`UPDATE documents SET title = ?, hash = ?, modified_at = ? WHERE id = ?`)
-    .run(title, hash, modifiedAt, documentId);
+  db.prepare(`UPDATE documents SET title = ?, hash = ?, modified_at = ?, original_path = COALESCE(?, original_path) WHERE id = ?`)
+    .run(title, hash, modifiedAt, originalPath ?? null, documentId);
 }
 
 /**

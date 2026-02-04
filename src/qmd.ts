@@ -1462,9 +1462,11 @@ async function indexFiles(pwd?: string, globPattern: string = DEFAULT_GLOB, coll
       if (existing.hash === hash) {
         // Hash unchanged, but check if title needs updating
         if (existing.title !== title) {
-          updateDocumentTitle(db, existing.id, title, now);
+          updateDocumentTitle(db, existing.id, title, now, relativeFile);
           updated++;
         } else {
+          // Even if unchanged, ensure original_path is set (for migration)
+          updateDocumentTitle(db, existing.id, title, now, relativeFile);
           unchanged++;
         }
       } else {
@@ -1472,7 +1474,8 @@ async function indexFiles(pwd?: string, globPattern: string = DEFAULT_GLOB, coll
         insertContent(db, hash, content, now);
         const stat = statSync(filepath);
         updateDocument(db, existing.id, title, hash,
-          stat ? new Date(stat.mtime).toISOString() : now);
+          stat ? new Date(stat.mtime).toISOString() : now,
+          relativeFile);
         updated++;
       }
     } else {
