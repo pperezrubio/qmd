@@ -1874,6 +1874,7 @@ describe("Reciprocal Rank Fusion", () => {
   const makeResult = (file: string, score: number): RankedResult => ({
     file,
     displayPath: file,
+    originalPath: null,
     title: file,
     body: "body",
     score,

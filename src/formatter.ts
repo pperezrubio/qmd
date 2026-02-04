@@ -112,6 +112,7 @@ export function searchResultsToJson(
       docid: `#${row.docid}`,
       score: Math.round(row.score * 100) / 100,
       file: row.displayPath,
+      ...(row.originalPath && { originalFile: row.originalPath }),
       title: row.title,
       ...(row.context && { context: row.context }),
       ...(body && { body }),

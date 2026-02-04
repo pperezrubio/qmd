@@ -338,12 +338,12 @@ describe("MCP Server", () => {
 
     test("performs RRF fusion on multiple result lists", () => {
       const list1: RankedResult[] = [
-        { file: "/a", displayPath: "a.md", title: "A", body: "body", score: 1 },
-        { file: "/b", displayPath: "b.md", title: "B", body: "body", score: 0.8 },
+        { file: "/a", displayPath: "a.md", originalPath: null, title: "A", body: "body", score: 1 },
+        { file: "/b", displayPath: "b.md", originalPath: null, title: "B", body: "body", score: 0.8 },
       ];
       const list2: RankedResult[] = [
-        { file: "/b", displayPath: "b.md", title: "B", body: "body", score: 1 },
-        { file: "/c", displayPath: "c.md", title: "C", body: "body", score: 0.9 },
+        { file: "/b", displayPath: "b.md", originalPath: null, title: "B", body: "body", score: 1 },
+        { file: "/c", displayPath: "c.md", originalPath: null, title: "C", body: "body", score: 0.9 },
       ];
 
       const fused = reciprocalRankFusion([list1, list2]);
@@ -369,12 +369,12 @@ describe("MCP Server", () => {
       const expanded = await expandQuery(query, DEFAULT_QUERY_MODEL, testDb);
 
       const rankedLists: RankedResult[][] = [];
-
       // Original query → FTS (probe)
       const probeFts = searchFTS(testDb, query, 20);
       if (probeFts.length > 0) {
         rankedLists.push(probeFts.map(r => ({
           file: r.filepath, displayPath: r.displayPath,
+          originalPath: r.originalPath,
           title: r.title, body: r.body || "", score: r.score,
         })));
       }
@@ -386,6 +386,7 @@ describe("MCP Server", () => {
           if (ftsResults.length > 0) {
             rankedLists.push(ftsResults.map(r => ({
               file: r.filepath, displayPath: r.displayPath,
+              originalPath: r.originalPath,
               title: r.title, body: r.body || "", score: r.score,
             })));
           }

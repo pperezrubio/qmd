@@ -1476,13 +1476,13 @@ async function indexFiles(pwd?: string, globPattern: string = DEFAULT_GLOB, coll
         updated++;
       }
     } else {
-      // New document - insert content and document
       indexed++;
       insertContent(db, hash, content, now);
       const stat = statSync(filepath);
       insertDocument(db, collectionName, path, title, hash,
         stat ? new Date(stat.birthtime).toISOString() : now,
-        stat ? new Date(stat.mtime).toISOString() : now);
+        stat ? new Date(stat.mtime).toISOString() : now,
+        relativeFile);
     }
 
     processed++;
@@ -1742,6 +1742,7 @@ function normalizeBM25(score: number): number {
   return 1 / (1 + Math.exp(-(absScore - 5) / 3));
 }
 
+
 type OutputOptions = {
   format: OutputFormat;
   full: boolean;
@@ -1783,7 +1784,7 @@ function shortPath(dirpath: string): string {
   return dirpath;
 }
 
-function outputResults(results: { file: string; displayPath: string; title: string; body: string; score: number; context?: string | null; chunkPos?: number; hash?: string; docid?: string }[], query: string, opts: OutputOptions): void {
+function outputResults(results: { file: string; displayPath: string; originalPath?: string | null; title: string; body: string; score: number; context?: string | null; chunkPos?: number; hash?: string; docid?: string }[], query: string, opts: OutputOptions): void {
   const filtered = results.filter(r => r.score >= opts.minScore).slice(0, opts.limit);
 
   if (filtered.length === 0) {
@@ -1808,6 +1809,7 @@ function outputResults(results: { file: string; displayPath: string; title: stri
         ...(docid && { docid: `#${docid}` }),
         score: Math.round(row.score * 100) / 100,
         file: toQmdPath(row.displayPath),
+        ...(row.originalPath && { originalFile: row.originalPath }),
         title: row.title,
         ...(row.context && { context: row.context }),
         ...(body && { body }),
@@ -1829,14 +1831,16 @@ function outputResults(results: { file: string; displayPath: string; title: stri
       const { line, snippet } = extractSnippet(row.body, query, 500, row.chunkPos);
       const docid = row.docid || (row.hash ? row.hash.slice(0, 6) : undefined);
 
-      // Line 1: filepath with docid
       const path = toQmdPath(row.displayPath);
-      // Only show :line if we actually found a term match in the snippet body (exclude header line).
       const snippetBody = snippet.split("\n").slice(1).join("\n").toLowerCase();
       const hasMatch = query.toLowerCase().split(/\s+/).some(t => t.length > 0 && snippetBody.includes(t));
       const lineInfo = hasMatch ? `:${line}` : "";
       const docidStr = docid ? ` ${c.dim}#${docid}${c.reset}` : "";
       console.log(`${c.cyan}${path}${c.dim}${lineInfo}${c.reset}${docidStr}`);
+
+      if (row.originalPath && row.originalPath !== row.displayPath) {
+        console.log(`${c.dim}Files: ${row.originalPath}${c.reset}`);
+      }
 
       // Line 2: Title (if available)
       if (row.title) {
@@ -2014,10 +2018,10 @@ function search(query: string, opts: OutputOptions): void {
     collectionNames
   );
 
-  // Add context to results
   const resultsWithContext = results.map(r => ({
     file: r.filepath,
     displayPath: r.displayPath,
+    originalPath: r.originalPath,
     title: r.title,
     body: r.body || "",
     score: r.score,
@@ -2084,6 +2088,7 @@ async function vectorSearch(query: string, opts: OutputOptions, _model: string =
         return prefixes.some(p => r.file.startsWith(p));
       });
     }
+
 
     closeDb();
 

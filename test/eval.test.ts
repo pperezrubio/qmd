@@ -300,6 +300,7 @@ describe.skipIf(!!process.env.CI)("Hybrid Search (RRF)", () => {
       rankedLists.push(ftsResults.map(r => ({
         file: r.filepath,
         displayPath: r.displayPath,
+        originalPath: r.originalPath,
         title: r.title,
         body: r.body || "",
         score: r.score
@@ -312,6 +313,7 @@ describe.skipIf(!!process.env.CI)("Hybrid Search (RRF)", () => {
       rankedLists.push(vecResults.map(r => ({
         file: r.filepath,
         displayPath: r.displayPath,
+        originalPath: r.originalPath,
         title: r.title,
         body: r.body || "",
         score: r.score

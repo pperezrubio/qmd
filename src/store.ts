@@ -652,6 +652,7 @@ function initializeDatabase(db: Database): void {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       collection TEXT NOT NULL,
       path TEXT NOT NULL,
+      original_path TEXT,
       title TEXT NOT NULL,
       hash TEXT NOT NULL,
       created_at TEXT NOT NULL,
@@ -661,6 +662,13 @@ function initializeDatabase(db: Database): void {
       UNIQUE(collection, path)
     )
   `);
+
+  // Migration: add original_path column if missing (existing DBs)
+  const docInfo = db.prepare(`PRAGMA table_info(documents)`).all() as { name: string }[];
+  const hasOriginalPath = docInfo.some(col => col.name === 'original_path');
+  if (!hasOriginalPath) {
+    db.exec(`ALTER TABLE documents ADD COLUMN original_path TEXT`);
+  }
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_documents_collection ON documents(collection, active)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_documents_hash ON documents(hash)`);
@@ -930,8 +938,9 @@ export function createStore(dbPath?: string): Store {
  * Body is optional - use getDocumentBody() to load it separately if needed.
  */
 export type DocumentResult = {
-  filepath: string;           // Full filesystem path
+  filepath: string;           // Virtual qmd:// path for database lookups
   displayPath: string;        // Short display path (e.g., "docs/readme.md")
+  originalPath: string | null; // Original filesystem relative path (before handelize normalization)
   title: string;              // Document title (from first heading or filename)
   context: string | null;     // Folder context description if configured
   hash: string;               // Content hash for caching/change detection
@@ -1022,6 +1031,7 @@ export type SearchResult = DocumentResult & {
 export type RankedResult = {
   file: string;
   displayPath: string;
+  originalPath: string | null;
   title: string;
   body: string;
   score: number;
@@ -1043,7 +1053,7 @@ export type MultiGetResult = {
   doc: DocumentResult;
   skipped: false;
 } | {
-  doc: Pick<DocumentResult, "filepath" | "displayPath">;
+  doc: Pick<DocumentResult, "filepath" | "displayPath" | "originalPath">;
   skipped: true;
   skipReason: string;
 };
@@ -1278,17 +1288,19 @@ export function insertDocument(
   title: string,
   hash: string,
   createdAt: string,
-  modifiedAt: string
+  modifiedAt: string,
+  originalPath?: string
 ): void {
   db.prepare(`
-    INSERT INTO documents (collection, path, title, hash, created_at, modified_at, active)
-    VALUES (?, ?, ?, ?, ?, ?, 1)
+    INSERT INTO documents (collection, path, original_path, title, hash, created_at, modified_at, active)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 1)
     ON CONFLICT(collection, path) DO UPDATE SET
+      original_path = excluded.original_path,
       title = excluded.title,
       hash = excluded.hash,
       modified_at = excluded.modified_at,
       active = 1
-  `).run(collectionName, path, title, hash, createdAt, modifiedAt);
+  `).run(collectionName, path, originalPath ?? null, title, hash, createdAt, modifiedAt);
 }
 
 /**
@@ -2101,6 +2113,7 @@ export function searchFTS(db: Database, query: string, limit: number = 20, colle
     SELECT
       'qmd://' || d.collection || '/' || d.path as filepath,
       d.collection || '/' || d.path as display_path,
+      d.original_path,
       d.title,
       content.doc as body,
       d.hash,
@@ -2121,7 +2134,7 @@ export function searchFTS(db: Database, query: string, limit: number = 20, colle
   sql += ` ORDER BY bm25_score ASC LIMIT ?`;
   params.push(limit);
 
-  const rows = db.prepare(sql).all(...params) as { filepath: string; display_path: string; title: string; body: string; hash: string; bm25_score: number }[];
+  const rows = db.prepare(sql).all(...params) as { filepath: string; display_path: string; original_path: string | null; title: string; body: string; hash: string; bm25_score: number }[];
   return rows.map(row => {
     const collectionName = row.filepath.split('//')[1]?.split('/')[0] || "";
     // Convert bm25 (negative, lower is better) into a stable [0..1) score where higher is better.
@@ -2132,11 +2145,12 @@ export function searchFTS(db: Database, query: string, limit: number = 20, colle
     return {
       filepath: row.filepath,
       displayPath: row.display_path,
+      originalPath: row.original_path,
       title: row.title,
       hash: row.hash,
       docid: getDocid(row.hash),
       collectionName,
-      modifiedAt: "",  // Not available in FTS query
+      modifiedAt: "",
       bodyLength: row.body.length,
       body: row.body,
       context: getContextForFile(db, row.filepath),
@@ -2184,6 +2198,7 @@ export async function searchVec(db: Database, query: string, model: string, limi
       cv.pos,
       'qmd://' || d.collection || '/' || d.path as filepath,
       d.collection || '/' || d.path as display_path,
+      d.original_path,
       d.title,
       content.doc as body
     FROM content_vectors cv
@@ -2200,7 +2215,7 @@ export async function searchVec(db: Database, query: string, model: string, limi
 
   const docRows = db.prepare(docSql).all(...params) as {
     hash_seq: string; hash: string; pos: number; filepath: string;
-    display_path: string; title: string; body: string;
+    display_path: string; original_path: string | null; title: string; body: string;
   }[];
 
   // Combine with distances and dedupe by filepath
@@ -2221,15 +2236,16 @@ export async function searchVec(db: Database, query: string, model: string, limi
       return {
         filepath: row.filepath,
         displayPath: row.display_path,
+        originalPath: row.original_path,
         title: row.title,
         hash: row.hash,
         docid: getDocid(row.hash),
         collectionName,
-        modifiedAt: "",  // Not available in vec query
+        modifiedAt: "",
         bodyLength: row.body.length,
         body: row.body,
         context: getContextForFile(db, row.filepath),
-        score: 1 - bestDist,  // Cosine similarity = 1 - cosine distance
+        score: 1 - bestDist,
         source: "vec" as const,
         chunkPos: row.pos,
       };
@@ -2424,6 +2440,7 @@ export function reciprocalRankFusion(
 type DbDocRow = {
   virtual_path: string;
   display_path: string;
+  original_path: string | null;
   title: string;
   hash: string;
   collection: string;
@@ -2466,11 +2483,10 @@ export function findDocument(db: Database, filename: string, options: { includeB
 
   const bodyCol = options.includeBody ? `, content.doc as body` : ``;
 
-  // Build computed columns
-  // Note: absoluteFilepath is computed from YAML collections after query
   const selectCols = `
     'qmd://' || d.collection || '/' || d.path as virtual_path,
     d.collection || '/' || d.path as display_path,
+    d.original_path,
     d.title,
     d.hash,
     d.collection,
@@ -2537,6 +2553,7 @@ export function findDocument(db: Database, filename: string, options: { includeB
   return {
     filepath: virtualPath,
     displayPath: doc.display_path,
+    originalPath: doc.original_path,
     title: doc.title,
     context,
     hash: doc.hash,
@@ -2615,6 +2632,7 @@ export function findDocuments(
   const selectCols = `
     'qmd://' || d.collection || '/' || d.path as virtual_path,
     d.collection || '/' || d.path as display_path,
+    d.original_path,
     d.title,
     d.hash,
     d.collection,
@@ -2681,7 +2699,7 @@ export function findDocuments(
 
     if (row.body_length > maxBytes) {
       results.push({
-        doc: { filepath: virtualPath, displayPath: row.display_path },
+        doc: { filepath: virtualPath, displayPath: row.display_path, originalPath: row.original_path },
         skipped: true,
         skipReason: `File too large (${Math.round(row.body_length / 1024)}KB > ${Math.round(maxBytes / 1024)}KB)`,
       });
@@ -2692,6 +2710,7 @@ export function findDocuments(
       doc: {
         filepath: virtualPath,
         displayPath: row.display_path,
+        originalPath: row.original_path,
         title: row.title || row.display_path.split('/').pop() || row.display_path,
         context,
         hash: row.hash,
