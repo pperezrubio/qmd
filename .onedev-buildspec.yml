@@ -58,3 +58,66 @@ jobs:
   maxRetries: 0
   retryDelay: 30
   timeout: 600
+- name: CI Smoke Test
+  steps:
+  - type: CommandStep
+    name: verify ci-agent execution
+    runInContainer: true
+    image: alpine:3.21
+    interpreter:
+      type: DefaultInterpreter
+      commands: |
+        set -e
+        echo "=== CI Smoke Test ==="
+        echo "Hostname: $(hostname)"
+        echo "Date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+        # 1. Verify we are NOT on the main OneDev node
+        #    The main node hostname is 'onedev', ci-agent hostname is 'ci-agent'
+        if [ "$(cat /etc/hostname 2>/dev/null)" = "onedev" ]; then
+          echo "FAIL: Running on main OneDev node — builds must use ci-agent"
+          exit 1
+        fi
+        echo "PASS: Not running on main OneDev node"
+
+        # 2. Verify container runtime works
+        echo "Container OS: $(cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2)"
+        echo "PASS: Container runtime OK"
+
+        # 3. Check resources
+        MEM_TOTAL=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+        MEM_AVAIL=$(grep MemAvailable /proc/meminfo | awk '{print $2}')
+        echo "Memory: ${MEM_AVAIL}kB available / ${MEM_TOTAL}kB total"
+        if [ "$MEM_AVAIL" -lt 1048576 ]; then
+          echo "WARN: Less than 1GB available memory"
+        else
+          echo "PASS: Memory OK (>1GB available)"
+        fi
+
+        DISK_AVAIL=$(df / | tail -1 | awk '{print $4}')
+        echo "Disk: ${DISK_AVAIL}kB available on /"
+        if [ "$DISK_AVAIL" -lt 5242880 ]; then
+          echo "WARN: Less than 5GB available disk"
+        else
+          echo "PASS: Disk OK (>5GB available)"
+        fi
+
+        # 4. Verify DNS and network connectivity
+        apk add --no-cache curl >/dev/null 2>&1
+        HTTP_CODE=$(curl -sk -o /dev/null -w "%{http_code}" --connect-timeout 5 https://onedev.tailb4c8de.ts.net || echo "000")
+        if [ "$HTTP_CODE" = "200" ]; then
+          echo "PASS: OneDev server reachable (HTTP $HTTP_CODE)"
+        else
+          echo "FAIL: OneDev server unreachable (HTTP $HTTP_CODE)"
+          exit 1
+        fi
+
+        echo ""
+        echo "=== All smoke tests passed ==="
+    useTTY: false
+    condition: SUCCESSFUL
+    optional: false
+  retryCondition: never
+  maxRetries: 0
+  retryDelay: 30
+  timeout: 120
