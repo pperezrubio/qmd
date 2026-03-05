@@ -2968,7 +2968,7 @@ export async function hybridQuery(
   if (initialFts.length > 0) {
     for (const r of initialFts) docidMap.set(r.filepath, r.docid);
     rankedLists.push(initialFts.map(r => ({
-      file: r.filepath, displayPath: r.displayPath,
+      file: r.filepath, displayPath: r.displayPath, originalPath: r.originalPath ?? null,
       title: r.title, body: r.body || "", score: r.score,
     })));
   }
@@ -2986,7 +2986,7 @@ export async function hybridQuery(
       if (ftsResults.length > 0) {
         for (const r of ftsResults) docidMap.set(r.filepath, r.docid);
         rankedLists.push(ftsResults.map(r => ({
-          file: r.filepath, displayPath: r.displayPath,
+          file: r.filepath, displayPath: r.displayPath, originalPath: r.originalPath ?? null,
           title: r.title, body: r.body || "", score: r.score,
         })));
       }
@@ -3024,7 +3024,7 @@ export async function hybridQuery(
       if (vecResults.length > 0) {
         for (const r of vecResults) docidMap.set(r.filepath, r.docid);
         rankedLists.push(vecResults.map(r => ({
-          file: r.filepath, displayPath: r.displayPath,
+          file: r.filepath, displayPath: r.displayPath, originalPath: r.originalPath ?? null,
           title: r.title, body: r.body || "", score: r.score,
         })));
       }
@@ -3282,7 +3282,7 @@ export async function structuredSearch(
         if (ftsResults.length > 0) {
           for (const r of ftsResults) docidMap.set(r.filepath, r.docid);
           rankedLists.push(ftsResults.map(r => ({
-            file: r.filepath, displayPath: r.displayPath,
+            file: r.filepath, displayPath: r.displayPath, originalPath: r.originalPath ?? null,
             title: r.title, body: r.body || "", score: r.score,
           })));
         }
@@ -3313,7 +3313,7 @@ export async function structuredSearch(
           if (vecResults.length > 0) {
             for (const r of vecResults) docidMap.set(r.filepath, r.docid);
             rankedLists.push(vecResults.map(r => ({
-              file: r.filepath, displayPath: r.displayPath,
+              file: r.filepath, displayPath: r.displayPath, originalPath: r.originalPath ?? null,
               title: r.title, body: r.body || "", score: r.score,
             })));
           }
