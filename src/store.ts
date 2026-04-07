@@ -2905,7 +2905,7 @@ export interface HybridQueryOptions {
 export interface HybridQueryResult {
   file: string;             // internal filepath (qmd://collection/path)
   displayPath: string;
-  originalPath: string | null;
+  originalPath?: string | null;
   title: string;
   body: string;             // full document body (for snippet extraction)
   bestChunk: string;        // best chunk text

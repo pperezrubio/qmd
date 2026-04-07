@@ -2107,6 +2107,7 @@ async function vectorSearch(query: string, opts: OutputOptions, _model: string =
     outputResults(results.map(r => ({
       file: r.file,
       displayPath: r.displayPath,
+      originalPath: r.originalPath,
       title: r.title,
       body: r.body,
       score: r.score,
@@ -2230,6 +2231,7 @@ async function querySearch(query: string, opts: OutputOptions, _embedModel: stri
     outputResults(results.map(r => ({
       file: r.file,
       displayPath: r.displayPath,
+      originalPath: r.originalPath,
       title: r.title,
       body: r.bestChunk,
       chunkPos: r.bestChunkPos,
