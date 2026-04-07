@@ -2905,6 +2905,7 @@ export interface HybridQueryOptions {
 export interface HybridQueryResult {
   file: string;             // internal filepath (qmd://collection/path)
   displayPath: string;
+  originalPath: string | null;
   title: string;
   body: string;             // full document body (for snippet extraction)
   bestChunk: string;        // best chunk text
@@ -3070,7 +3071,7 @@ export async function hybridQuery(
   // Step 7: Blend RRF position score with reranker score
   // Position-aware weights: top retrieval results get more protection from reranker disagreement
   const candidateMap = new Map(candidates.map(c => [c.file, {
-    displayPath: c.displayPath, title: c.title, body: c.body,
+    displayPath: c.displayPath, originalPath: c.originalPath ?? null, title: c.title, body: c.body,
   }]));
   const rrfRankMap = new Map(candidates.map((c, i) => [c.file, i + 1]));
 
@@ -3092,6 +3093,7 @@ export async function hybridQuery(
     return {
       file: r.file,
       displayPath: candidate?.displayPath || "",
+      originalPath: candidate?.originalPath ?? null,
       title: candidate?.title || "",
       body: candidate?.body || "",
       bestChunk,
@@ -3124,6 +3126,7 @@ export interface VectorSearchOptions {
 export interface VectorSearchResult {
   file: string;
   displayPath: string;
+  originalPath: string | null;
   title: string;
   body: string;
   score: number;
@@ -3171,6 +3174,7 @@ export async function vectorSearchQuery(
         allResults.set(r.filepath, {
           file: r.filepath,
           displayPath: r.displayPath,
+          originalPath: r.originalPath ?? null,
           title: r.title,
           body: r.body || "",
           score: r.score,
@@ -3367,7 +3371,7 @@ export async function structuredSearch(
 
   // Step 6: Blend RRF position score with reranker score
   const candidateMap = new Map(candidates.map(c => [c.file, {
-    displayPath: c.displayPath, title: c.title, body: c.body,
+    displayPath: c.displayPath, originalPath: c.originalPath ?? null, title: c.title, body: c.body,
   }]));
   const rrfRankMap = new Map(candidates.map((c, i) => [c.file, i + 1]));
 
@@ -3389,6 +3393,7 @@ export async function structuredSearch(
     return {
       file: r.file,
       displayPath: candidate?.displayPath || "",
+      originalPath: candidate?.originalPath ?? null,
       title: candidate?.title || "",
       body: candidate?.body || "",
       bestChunk,
